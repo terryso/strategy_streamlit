@@ -8,7 +8,7 @@ from tqdm import tqdm
 import argparse
 import os  # 添加导入
 
-BASE_URL = "https://api.binance.us"
+BASE_URL = "https://api.binance.com" if os.getenv("RUN_ENV") == "local" else "https://api.binance.us"
 REQ_LIMIT = 1000
 SUPPORT_INTERVAL = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"}
 
@@ -32,7 +32,6 @@ def get_klines(symbol, interval='1h', since=None, limit=1000, to=None):
         'endTime': to * 1000 if to else None
     }
     resp = requests.get(BASE_URL + end_point, params=params)
-    print(resp.json())
     return resp.json()
 
 def download_full_klines(symbol, interval, start, end=None, save_to=None, req_interval=None, dimension="ohlcv", return_df=False):

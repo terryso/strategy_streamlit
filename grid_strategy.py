@@ -1,9 +1,11 @@
 import pandas as pd
 
 def analyze_grid_strategy(df, visualize=True, threshold_factor=1.0, grid_step_percentage=1.0,
-                         max_grids=10, atr_period=14, atr_std_multiplier=1.0, streamlit_mode=False):
+                         max_grids=10, atr_period=14, atr_std_multiplier=2.0, macd_fast=12, macd_slow=26, macd_signal=9,
+                         streamlit_mode=False):
     """
     分析K线数据是否适合使用网格策略，并推荐网格价格范围和网格数量。
+    集成MACD指标以预测未来价格范围。
     """
     output = []
 
@@ -54,16 +56,32 @@ def analyze_grid_strategy(df, visualize=True, threshold_factor=1.0, grid_step_pe
     else:
         print(message)
 
+    # 计算MACD指标
+    df['EMA_fast'] = df['close'].ewm(span=macd_fast, adjust=False).mean()
+    df['EMA_slow'] = df['close'].ewm(span=macd_slow, adjust=False).mean()
+    df['MACD'] = df['EMA_fast'] - df['EMA_slow']
+    df['MACD_signal'] = df['MACD'].ewm(span=macd_signal, adjust=False).mean()
+    df['MACD_hist'] = df['MACD'] - df['MACD_signal']
+    latest_macd = df['MACD'].iloc[-1]
+    latest_macd_signal = df['MACD_signal'].iloc[-1]
+    latest_macd_hist = df['MACD_hist'].iloc[-1]
+
+    message = f'最新MACD: {latest_macd:.2f}\n最新信号线: {latest_macd_signal:.2f}\n最新柱状图: {latest_macd_hist:.2f}'
+    if streamlit_mode:
+        output.append(('info', message))
+    else:
+        print(message)
+
     if streamlit_mode and visualize:
-        plot_price_atr = {
-            'title': f'价格波动范围与ATR({atr_period})',
+        plot_macd = {
+            'title': 'MACD指标',
             'x': df['open_time'],
-            'y': df[['price_change', 'ATR']],
+            'y': df[['MACD', 'MACD_signal', 'MACD_hist']],
             'xlabel': '时间',
-            'ylabel': '值 (USDT)',
-            'labels': ['价格波动范围', f'ATR({atr_period})']
+            'ylabel': '值',
+            'labels': ['MACD', '信号线', '柱状图']
         }
-        output.append(('plot', plot_price_atr))
+        output.append(('plot', plot_macd))
 
     # 自动计算 min_atr 和 max_atr 基于均值和标准差
     atr_mean = df['ATR'].mean()
@@ -94,17 +112,23 @@ def analyze_grid_strategy(df, visualize=True, threshold_factor=1.0, grid_step_pe
         else:
             print("数据适合使用网格策略。")
 
-        # 推荐网格价格范围
+        # 推荐网格价格范围基于MACD趋势
         current_price = df['close'].iloc[-1]
-        price_range = latest_atr * atr_std_multiplier * 4  # 假设价格波动范围为4倍的ATR
-        min_price = current_price - price_range / 2
-        max_price = current_price + price_range / 2
+        if latest_macd > latest_macd_signal:
+            # MACD在上升趋势，设置最大价格增加50%，最小价格减少20%
+            max_price = current_price * 1.3
+            min_price = current_price * 0.85
+            message = "MACD显示上升趋势，适合做多。"
+        else:
+            # MACD在下降趋势，设置最大价格减少20%，最小价格增加50%
+            max_price = current_price * 1.15
+            min_price = current_price * 0.7
+            message = "MACD显示下降趋势，适合做空。"
 
-        # 确保价格范围包含历史最高价和最低价
-        historical_min_price = df['close'].min()
-        historical_max_price = df['close'].max()
-        min_price = min(min_price, historical_min_price)
-        max_price = max(max_price, historical_max_price)
+        if streamlit_mode:
+            output.append(('info', message))
+        else:
+            print(message)
 
         message = f"推荐的网格价格范围: {min_price:.2f} USDT - {max_price:.2f} USDT"
         if streamlit_mode:

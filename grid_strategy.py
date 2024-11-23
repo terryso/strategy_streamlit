@@ -68,7 +68,7 @@ def analyze_grid_strategy(df, visualize=True, threshold_factor=1.0, grid_step_pe
     # 自动计算 min_atr 和 max_atr 基于均值和标准差
     atr_mean = df['ATR'].mean()
     atr_std = df['ATR'].std()
-    min_atr = atr_mean - atr_std_multiplier * atr_std
+    min_atr = max(0, atr_mean - atr_std_multiplier * atr_std)  # 确保 min_atr 不小于零
     max_atr = atr_mean + atr_std_multiplier * atr_std
     message = f'自动设定最低ATR阈值 (mean - {atr_std_multiplier}*std): {min_atr:.2f} USDT\n' \
               f'自动设定最高ATR阈值 (mean + {atr_std_multiplier}*std): {max_atr:.2f} USDT'
@@ -95,9 +95,17 @@ def analyze_grid_strategy(df, visualize=True, threshold_factor=1.0, grid_step_pe
             print("数据适合使用网格策略。")
 
         # 推荐网格价格范围
-        min_price = df['close'].min()
-        max_price = df['close'].max()
-        price_range = max_price - min_price
+        current_price = df['close'].iloc[-1]
+        price_range = latest_atr * atr_std_multiplier * 4  # 假设价格波动范围为4倍的ATR
+        min_price = current_price - price_range / 2
+        max_price = current_price + price_range / 2
+
+        # 确保价格范围包含历史最高价和最低价
+        historical_min_price = df['close'].min()
+        historical_max_price = df['close'].max()
+        min_price = min(min_price, historical_min_price)
+        max_price = max(max_price, historical_max_price)
+
         message = f"推荐的网格价格范围: {min_price:.2f} USDT - {max_price:.2f} USDT"
         if streamlit_mode:
             output.append(('info', message))
@@ -105,7 +113,8 @@ def analyze_grid_strategy(df, visualize=True, threshold_factor=1.0, grid_step_pe
             print(message)
 
         # 推荐网格数量
-        recommended_grids = min(int(price_range / (min_price * grid_step_percentage / 100)), max_grids)
+        grid_step = current_price * grid_step_percentage / 100
+        recommended_grids = min(int((max_price - min_price) / grid_step), max_grids)
         recommended_grids = recommended_grids if recommended_grids > 0 else 1
         message = f"推荐的网格数量: {recommended_grids}"
         if streamlit_mode:
@@ -114,7 +123,7 @@ def analyze_grid_strategy(df, visualize=True, threshold_factor=1.0, grid_step_pe
             print(message)
 
         # 计算网格间隔
-        grid_interval = price_range / recommended_grids
+        grid_interval = (max_price - min_price) / recommended_grids
         message = f"推荐的网格间隔: {grid_interval:.2f} USDT"
         if streamlit_mode:
             output.append(('info', message))

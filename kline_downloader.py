@@ -32,6 +32,7 @@ def get_klines(symbol, interval='1h', since=None, limit=1000, to=None):
         'endTime': to * 1000 if to else None
     }
     resp = requests.get(BASE_URL + end_point, params=params)
+    print(resp.json())
     return resp.json()
 
 def download_full_klines(symbol, interval, start, end=None, save_to=None, req_interval=None, dimension="ohlcv", return_df=False):

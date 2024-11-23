@@ -281,5 +281,3 @@ pip install -r requirements.txt
 ## 联系方式
 
 如有任何问题或建议，请通过 [GitHub Issues](https://github.com/terryso/strategy_streamlit/issues) 联系我们。
-
-
